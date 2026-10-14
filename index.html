@@ -1,0 +1,1194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>SNAP — Fantasy Trade Judge</title>
+  <meta name="description" content="Judge fantasy football trades with FantasyCalc values. Dynasty or redraft, 8–12 teams, players and draft picks." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --ink: #0b1410;
+      --ink-soft: #15241c;
+      --field: #1a3a2a;
+      --mist: rgba(232, 242, 228, 0.78);
+      --paper: #e8f2e4;
+      --lime: #c8f542;
+      --lime-deep: #9bc41f;
+      --amber: #ffb347;
+      --danger: #ff6b5a;
+      --line: rgba(232, 242, 228, 0.14);
+      --glass: rgba(11, 20, 16, 0.55);
+      --radius: 14px;
+      --shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+      --font-display: "Archivo Black", Impact, sans-serif;
+      --font-body: "Figtree", "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: var(--font-body);
+      color: var(--paper);
+      background:
+        radial-gradient(120% 80% at 10% -10%, rgba(200, 245, 66, 0.18), transparent 50%),
+        radial-gradient(90% 70% at 100% 0%, rgba(255, 179, 71, 0.12), transparent 45%),
+        linear-gradient(165deg, #07110d 0%, #12261b 42%, #0b1410 100%);
+      overflow-x: hidden;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      opacity: 0.22;
+      background-image:
+        repeating-linear-gradient(
+          90deg,
+          transparent 0,
+          transparent 46px,
+          rgba(232, 242, 228, 0.05) 46px,
+          rgba(232, 242, 228, 0.05) 48px
+        ),
+        linear-gradient(rgba(232, 242, 228, 0.04) 1px, transparent 1px);
+      background-size: 100% 100%, 100% 72px;
+      mask-image: linear-gradient(to bottom, black 0%, transparent 70%);
+      z-index: 0;
+    }
+
+    .wrap {
+      position: relative;
+      z-index: 1;
+      width: min(720px, 100%);
+      margin: 0 auto;
+      padding: 0 1.1rem 3.5rem;
+    }
+
+    /* —— Hero: one composition —— */
+    .hero {
+      min-height: 100svh;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      padding: 1.25rem 0 2.4rem;
+      gap: 1.1rem;
+    }
+
+    .brand {
+      font-family: var(--font-display);
+      font-size: clamp(4.6rem, 22vw, 7.5rem);
+      line-height: 0.86;
+      letter-spacing: -0.03em;
+      color: var(--lime);
+      text-shadow: 0 0 40px rgba(200, 245, 66, 0.25);
+      margin: 0;
+      animation: rise 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+
+    .hero h1 {
+      margin: 0;
+      max-width: 14ch;
+      font-family: var(--font-display);
+      font-size: clamp(1.7rem, 6.5vw, 2.35rem);
+      line-height: 1.05;
+      letter-spacing: -0.02em;
+      animation: rise 0.9s cubic-bezier(0.22, 1, 0.36, 1) 0.12s both;
+    }
+
+    .hero p {
+      margin: 0;
+      max-width: 32ch;
+      color: var(--mist);
+      font-size: 1.05rem;
+      line-height: 1.45;
+      animation: rise 0.9s cubic-bezier(0.22, 1, 0.36, 1) 0.22s both;
+    }
+
+    .cta {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.55rem;
+      width: fit-content;
+      margin-top: 0.35rem;
+      padding: 0.95rem 1.25rem;
+      border: 0;
+      border-radius: 999px;
+      background: var(--lime);
+      color: var(--ink);
+      font: 700 1rem/1 var(--font-body);
+      text-decoration: none;
+      cursor: pointer;
+      box-shadow: 0 10px 30px rgba(200, 245, 66, 0.25);
+      animation: rise 0.9s cubic-bezier(0.22, 1, 0.36, 1) 0.32s both;
+      transition: transform 0.2s ease, background 0.2s ease;
+    }
+    .cta:hover { transform: translateY(-2px); background: #d7ff5c; }
+    .cta:active { transform: translateY(0); }
+    .cta span { font-size: 1.15rem; }
+
+    @keyframes rise {
+      from { opacity: 0; transform: translateY(22px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* —— Controls —— */
+    .panel {
+      scroll-margin-top: 1rem;
+      margin-top: 0.5rem;
+    }
+
+    .controls {
+      display: grid;
+      gap: 0.85rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .control-block {
+      display: grid;
+      gap: 0.45rem;
+    }
+
+    .label {
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: rgba(232, 242, 228, 0.62);
+    }
+
+    .seg {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 0.35rem;
+      padding: 0.3rem;
+      border-radius: 999px;
+      background: rgba(0, 0, 0, 0.28);
+      border: 1px solid var(--line);
+    }
+    .seg.teams { grid-template-columns: repeat(3, 1fr); }
+
+    .seg button {
+      border: 0;
+      border-radius: 999px;
+      padding: 0.72rem 0.5rem;
+      background: transparent;
+      color: var(--mist);
+      font: 650 0.95rem/1 var(--font-body);
+      cursor: pointer;
+      transition: background 0.25s ease, color 0.25s ease, transform 0.2s ease;
+    }
+    .seg button[aria-pressed="true"] {
+      background: var(--lime);
+      color: var(--ink);
+      transform: scale(1.02);
+    }
+
+    .status {
+      min-height: 1.35rem;
+      font-size: 0.88rem;
+      color: rgba(232, 242, 228, 0.65);
+    }
+    .status.error { color: var(--danger); }
+    .status.ok { color: var(--lime); }
+
+    /* —— Verdict —— */
+    .verdict {
+      position: sticky;
+      top: 0.55rem;
+      z-index: 5;
+      margin-bottom: 1.1rem;
+      padding: 1rem 1.05rem;
+      border-radius: var(--radius);
+      background: color-mix(in srgb, var(--ink) 78%, transparent);
+      border: 1px solid var(--line);
+      backdrop-filter: blur(14px);
+      box-shadow: var(--shadow);
+      animation: pulseGlow 3.2s ease-in-out infinite;
+    }
+
+    @keyframes pulseGlow {
+      0%, 100% { box-shadow: 0 16px 40px rgba(0, 0, 0, 0.28); }
+      50% { box-shadow: 0 16px 40px rgba(200, 245, 66, 0.12); }
+    }
+
+    .verdict-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 0.75rem;
+      margin-bottom: 0.65rem;
+    }
+    .verdict-title {
+      font-family: var(--font-display);
+      font-size: 1.15rem;
+      letter-spacing: -0.01em;
+    }
+    .verdict-delta {
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      font-size: 1.05rem;
+    }
+    .verdict-delta.fair { color: var(--lime); }
+    .verdict-delta.lean-a { color: var(--amber); }
+    .verdict-delta.lean-b { color: #7ed0ff; }
+
+    .bars {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.55rem;
+    }
+    .bar-meta {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.78rem;
+      color: var(--mist);
+      margin-bottom: 0.28rem;
+    }
+    .bar-track {
+      height: 8px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.08);
+      overflow: hidden;
+    }
+    .bar-fill {
+      height: 100%;
+      width: 0%;
+      border-radius: inherit;
+      transition: width 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .bar-fill.a { background: linear-gradient(90deg, var(--amber), #ffd28a); }
+    .bar-fill.b { background: linear-gradient(90deg, #4eb6ff, #9ad8ff); }
+    .totals {
+      font-variant-numeric: tabular-nums;
+      font-weight: 700;
+      color: var(--paper);
+    }
+
+    /* —— Sides —— */
+    .sides {
+      display: grid;
+      gap: 1.25rem;
+    }
+
+    .side h2 {
+      margin: 0 0 0.7rem;
+      font-family: var(--font-display);
+      font-size: 1.35rem;
+      letter-spacing: -0.01em;
+    }
+    .side.a h2 { color: var(--amber); }
+    .side.b h2 { color: #7ed0ff; }
+
+    .rows {
+      display: grid;
+      gap: 0.55rem;
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 1fr auto auto;
+      gap: 0.45rem;
+      align-items: center;
+      animation: rowIn 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+
+    @keyframes rowIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .pick-wrap {
+      position: relative;
+      min-width: 0;
+    }
+
+    .pick-wrap input {
+      width: 100%;
+      padding: 0.85rem 0.9rem;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: rgba(0, 0, 0, 0.28);
+      color: var(--paper);
+      font: 500 1rem/1.2 var(--font-body);
+      outline: none;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+    .pick-wrap input:focus {
+      border-color: rgba(200, 245, 66, 0.55);
+      box-shadow: 0 0 0 3px rgba(200, 245, 66, 0.12);
+    }
+    .pick-wrap input::placeholder { color: rgba(232, 242, 228, 0.38); }
+
+    .suggestions {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: calc(100% + 4px);
+      z-index: 8;
+      max-height: 220px;
+      overflow: auto;
+      margin: 0;
+      padding: 0.35rem;
+      list-style: none;
+      border-radius: 12px;
+      background: #101c16;
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow);
+      display: none;
+    }
+    .suggestions.open { display: block; }
+    .suggestions li {
+      padding: 0.65rem 0.7rem;
+      border-radius: 8px;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      gap: 0.75rem;
+      font-size: 0.95rem;
+    }
+    .suggestions li:hover,
+    .suggestions li[aria-selected="true"] {
+      background: rgba(200, 245, 66, 0.12);
+    }
+    .suggestions .meta {
+      color: rgba(232, 242, 228, 0.5);
+      font-size: 0.8rem;
+      white-space: nowrap;
+      font-variant-numeric: tabular-nums;
+    }
+    .suggestions .taken { opacity: 0.4; pointer-events: none; }
+
+    .value {
+      min-width: 3.6rem;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      font-weight: 700;
+      color: var(--mist);
+      font-size: 0.95rem;
+    }
+
+    .remove {
+      width: 2.35rem;
+      height: 2.35rem;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: rgba(0, 0, 0, 0.22);
+      color: var(--mist);
+      font-size: 1.15rem;
+      line-height: 1;
+      cursor: pointer;
+      transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+    }
+    .remove:hover {
+      background: rgba(255, 107, 90, 0.16);
+      border-color: rgba(255, 107, 90, 0.45);
+      color: #ffb0a7;
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.45rem;
+      margin-top: 0.75rem;
+    }
+    .actions button {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: transparent;
+      color: var(--paper);
+      padding: 0.65rem 0.95rem;
+      font: 600 0.9rem/1 var(--font-body);
+      cursor: pointer;
+      transition: background 0.2s ease, border-color 0.2s ease;
+    }
+    .actions button:hover {
+      background: rgba(200, 245, 66, 0.08);
+      border-color: rgba(200, 245, 66, 0.35);
+    }
+
+    .footnote {
+      margin-top: 2rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--line);
+      color: rgba(232, 242, 228, 0.55);
+      font-size: 0.82rem;
+      line-height: 1.5;
+    }
+    .footnote code {
+      font-size: 0.78rem;
+      color: rgba(200, 245, 66, 0.85);
+    }
+
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: 1.25rem;
+      transform: translateX(-50%) translateY(120%);
+      z-index: 20;
+      padding: 0.75rem 1rem;
+      border-radius: 999px;
+      background: #2a1614;
+      border: 1px solid rgba(255, 107, 90, 0.45);
+      color: #ffd1cb;
+      font-size: 0.9rem;
+      font-weight: 600;
+      opacity: 0;
+      transition: transform 0.3s ease, opacity 0.3s ease;
+      pointer-events: none;
+      max-width: min(92vw, 420px);
+      text-align: center;
+    }
+    .toast.show {
+      transform: translateX(-50%) translateY(0);
+      opacity: 1;
+    }
+
+    @media (min-width: 720px) {
+      .sides { grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+      .controls {
+        grid-template-columns: 1.2fr 1fr;
+        align-items: end;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="hero">
+      <p class="brand" aria-label="SNAP">SNAP</p>
+      <h1>Judge the trade before you accept.</h1>
+      <p>FantasyCalc values on a 1–10,000 scale — dynasty or redraft, with picks for the next three drafts.</p>
+      <a class="cta" href="#builder">Build a trade <span aria-hidden="true">↓</span></a>
+    </header>
+
+    <main id="builder" class="panel">
+      <div class="controls">
+        <div class="control-block">
+          <div class="label" id="format-label">Format</div>
+          <div class="seg" role="group" aria-labelledby="format-label">
+            <button type="button" id="btn-dynasty" aria-pressed="true">Dynasty</button>
+            <button type="button" id="btn-redraft" aria-pressed="false">Redraft</button>
+          </div>
+        </div>
+        <div class="control-block">
+          <div class="label" id="teams-label">League size</div>
+          <div class="seg teams" role="group" aria-labelledby="teams-label">
+            <button type="button" data-teams="8" aria-pressed="false">8</button>
+            <button type="button" data-teams="10" aria-pressed="false">10</button>
+            <button type="button" data-teams="12" aria-pressed="true">12</button>
+          </div>
+        </div>
+      </div>
+      <div class="status" id="status" aria-live="polite">Loading FantasyCalc values…</div>
+
+      <section class="verdict" aria-live="polite">
+        <div class="verdict-top">
+          <div class="verdict-title" id="verdict-title">Even trade</div>
+          <div class="verdict-delta fair" id="verdict-delta">—</div>
+        </div>
+        <div class="bars">
+          <div>
+            <div class="bar-meta"><span>You give</span><span class="totals" id="total-a">0</span></div>
+            <div class="bar-track"><div class="bar-fill a" id="bar-a"></div></div>
+          </div>
+          <div>
+            <div class="bar-meta"><span>You get</span><span class="totals" id="total-b">0</span></div>
+            <div class="bar-track"><div class="bar-fill b" id="bar-b"></div></div>
+          </div>
+        </div>
+      </section>
+
+      <div class="sides">
+        <section class="side a" aria-labelledby="side-a-title">
+          <h2 id="side-a-title">You give</h2>
+          <div class="rows" id="rows-a"></div>
+          <div class="actions">
+            <button type="button" data-add="a" data-kind="player">+ Player</button>
+            <button type="button" data-add="a" data-kind="pick">+ Draft pick</button>
+          </div>
+        </section>
+        <section class="side b" aria-labelledby="side-b-title">
+          <h2 id="side-b-title">You get</h2>
+          <div class="rows" id="rows-b"></div>
+          <div class="actions">
+            <button type="button" data-add="b" data-kind="player">+ Player</button>
+            <button type="button" data-add="b" data-kind="pick">+ Draft pick</button>
+          </div>
+        </section>
+      </div>
+
+      <p class="footnote">
+        Values load from FantasyCalc’s public API
+        (<code>https://api.fantasycalc.com/values/current</code>
+        with <code>isDynasty</code>, <code>numTeams</code>, <code>numQbs=1</code>, and <code>ppr=1</code>.
+        Trade values use FantasyCalc’s ~1–10,000 scale (elite assets can slightly exceed 10,000).
+        Draft picks cover the next three NFL drafts, rounds 1–5. When FantasyCalc omits a round
+        (often 5ths, and all picks in redraft), SNAP extrapolates from nearby FantasyCalc pick
+        values so league-size and format still move the numbers.
+      </p>
+    </main>
+  </div>
+
+  <div class="toast" id="toast" role="status"></div>
+
+  <script>
+    (() => {
+      "use strict";
+
+      const API = "https://api.fantasycalc.com/values/current";
+      const ROUND_WORDS = ["1st", "2nd", "3rd", "4th", "5th"];
+      const PICK_YEARS = (() => {
+        // Next three draft classes from "now" (NFL draft year).
+        const now = new Date();
+        // Before May: upcoming draft may still be current calendar year.
+        const start = now.getMonth() < 4 ? now.getFullYear() : now.getFullYear() + 1;
+        return [start, start + 1, start + 2];
+      })();
+
+      const state = {
+        isDynasty: true,
+        numTeams: 12,
+        assets: [], // { id, name, position, value, kind: 'player'|'pick', search }
+        cache: new Map(),
+        sides: { a: [], b: [] }, // row models
+        toastTimer: null,
+      };
+
+      const el = {
+        status: document.getElementById("status"),
+        rowsA: document.getElementById("rows-a"),
+        rowsB: document.getElementById("rows-b"),
+        totalA: document.getElementById("total-a"),
+        totalB: document.getElementById("total-b"),
+        barA: document.getElementById("bar-a"),
+        barB: document.getElementById("bar-b"),
+        verdictTitle: document.getElementById("verdict-title"),
+        verdictDelta: document.getElementById("verdict-delta"),
+        toast: document.getElementById("toast"),
+        btnDynasty: document.getElementById("btn-dynasty"),
+        btnRedraft: document.getElementById("btn-redraft"),
+      };
+
+      function cacheKey(isDynasty, numTeams) {
+        return `${isDynasty ? "D" : "R"}-${numTeams}`;
+      }
+
+      function showToast(msg) {
+        el.toast.textContent = msg;
+        el.toast.classList.add("show");
+        clearTimeout(state.toastTimer);
+        state.toastTimer = setTimeout(() => el.toast.classList.remove("show"), 2200);
+      }
+
+      function fmt(n) {
+        return Math.round(n).toLocaleString("en-US");
+      }
+
+      function normalizeName(s) {
+        return String(s || "")
+          .toLowerCase()
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .replace(/[^a-z0-9\s]/g, " ")
+          .replace(/\s+/g, " ")
+          .trim();
+      }
+
+      function pickId(year, round) {
+        return `pick:${year}:${round}`;
+      }
+
+      function pickLabel(year, round) {
+        return `${year} ${ROUND_WORDS[round - 1]}`;
+      }
+
+      function parsePickName(name) {
+        const m = String(name).match(/^(\d{4})\s+(\d)(?:st|nd|rd|th)(?:\s*\((Early|Mid|Late)\))?$/i);
+        if (!m) return null;
+        return { year: Number(m[1]), round: Number(m[2]), tier: (m[3] || "").toLowerCase() || "mid" };
+      }
+
+      function extrapolatePicks(apiPicksByKey, years) {
+        // Prefer FantasyCalc generic (non Early/Mid/Late) value; fall back to Mid, then any.
+        const get = (year, round) => {
+          const keys = [
+            `${year}:${round}:mid`,
+            `${year}:${round}:early`,
+            `${year}:${round}:late`,
+          ];
+          for (const k of keys) {
+            if (apiPicksByKey.has(k)) return apiPicksByKey.get(k);
+          }
+          return null;
+        };
+
+        const values = new Map();
+        for (const year of years) {
+          for (let r = 1; r <= 5; r++) {
+            const v = get(year, r);
+            if (v != null) values.set(`${year}:${r}`, v);
+          }
+        }
+
+        // Fill missing rounds per year using decay from known rounds.
+        for (const year of years) {
+          const known = [];
+          for (let r = 1; r <= 5; r++) {
+            const key = `${year}:${r}`;
+            if (values.has(key)) known.push({ r, v: values.get(key) });
+          }
+          if (!known.length) continue;
+          for (let r = 1; r <= 5; r++) {
+            const key = `${year}:${r}`;
+            if (values.has(key)) continue;
+            // Find nearest lower and higher known rounds
+            const lower = [...known].reverse().find((x) => x.r < r);
+            const higher = known.find((x) => x.r > r);
+            let est;
+            if (lower && higher) {
+              const t = (r - lower.r) / (higher.r - lower.r);
+              est = lower.v + (higher.v - lower.v) * t;
+            } else if (lower) {
+              const prev = known.find((x) => x.r === lower.r - 1);
+              const ratio = prev ? lower.v / prev.v : 0.78;
+              est = lower.v * Math.min(0.92, Math.max(0.55, ratio));
+              // Step forward from lower to r
+              for (let step = lower.r + 1; step < r; step++) {
+                est *= Math.min(0.92, Math.max(0.55, ratio));
+              }
+            } else if (higher) {
+              const next = known.find((x) => x.r === higher.r + 1);
+              const ratio = next ? higher.v / next.v : 1.25;
+              est = higher.v * Math.min(1.8, Math.max(1.05, ratio));
+            }
+            if (est != null) values.set(key, Math.max(1, Math.round(est)));
+          }
+        }
+
+        // If a whole year is missing, decay from previous year.
+        for (let i = 0; i < years.length; i++) {
+          const year = years[i];
+          const hasAny = ROUND_WORDS.some((_, idx) => values.has(`${year}:${idx + 1}`));
+          if (hasAny) continue;
+          const prevYear = i > 0 ? years[i - 1] : null;
+          if (!prevYear) continue;
+          for (let r = 1; r <= 5; r++) {
+            const prev = values.get(`${prevYear}:${r}`);
+            if (prev != null) values.set(`${year}:${r}`, Math.max(1, Math.round(prev * 0.82)));
+          }
+        }
+
+        return values;
+      }
+
+      function buildAssets(raw, isDynasty) {
+        const players = [];
+        const apiPicks = new Map();
+
+        for (const row of raw) {
+          const p = row.player || {};
+          const pos = p.position || "";
+          if (pos === "PICK") {
+            const parsed = parsePickName(p.name);
+            if (!parsed) continue;
+            const key = `${parsed.year}:${parsed.round}:${parsed.tier}`;
+            // Prefer non-tiered / mid over early/late when colliding on same year+round
+            const existing = apiPicks.get(key);
+            if (existing == null || parsed.tier === "mid") {
+              apiPicks.set(key, Number(row.value) || 0);
+            }
+            // Also store generic mid if name has no tier
+            if (!p.name.includes("(")) {
+              apiPicks.set(`${parsed.year}:${parsed.round}:mid`, Number(row.value) || 0);
+            }
+            continue;
+          }
+          if (!p.name) continue;
+          const id = `player:${p.id ?? p.sleeperId ?? normalizeName(p.name)}`;
+          players.push({
+            id,
+            name: p.name,
+            position: pos,
+            value: Number(row.value) || 0,
+            kind: "player",
+            search: normalizeName(`${p.name} ${pos} ${p.maybeTeam || ""}`),
+          });
+        }
+
+        // Redraft responses usually omit picks — seed from dynasty pick curve when needed.
+        // We still mark them as picks and keep redraft scaling if any pick values exist.
+        let pickValues = extrapolatePicks(apiPicks, PICK_YEARS);
+
+        if (![...pickValues.keys()].length) {
+          // Fallback curve relative to top player value so redraft still has assets.
+          const top = players.reduce((m, x) => Math.max(m, x.value), 1000);
+          const base1 = Math.round(top * (isDynasty ? 0.28 : 0.04));
+          const decay = [1, 0.54, 0.37, 0.29, 0.23];
+          const yearDecay = [1, 0.82, 0.68];
+          for (let yi = 0; yi < PICK_YEARS.length; yi++) {
+            for (let r = 1; r <= 5; r++) {
+              pickValues.set(
+                `${PICK_YEARS[yi]}:${r}`,
+                Math.max(1, Math.round(base1 * decay[r - 1] * yearDecay[yi]))
+              );
+            }
+          }
+        } else {
+          // Ensure all year/round slots exist
+          pickValues = extrapolatePicks(apiPicks, PICK_YEARS);
+          for (const year of PICK_YEARS) {
+            for (let r = 1; r <= 5; r++) {
+              if (!pickValues.has(`${year}:${r}`)) {
+                const prev = pickValues.get(`${year}:${r - 1}`);
+                pickValues.set(`${year}:${r}`, Math.max(1, Math.round((prev || 200) * 0.78)));
+              }
+            }
+          }
+        }
+
+        const picks = [];
+        for (const year of PICK_YEARS) {
+          for (let r = 1; r <= 5; r++) {
+            const name = pickLabel(year, r);
+            picks.push({
+              id: pickId(year, r),
+              name,
+              position: "PICK",
+              value: pickValues.get(`${year}:${r}`) || 1,
+              kind: "pick",
+              search: normalizeName(name + " pick draft"),
+            });
+          }
+        }
+
+        return [...players, ...picks].sort((a, b) => b.value - a.value);
+      }
+
+      async function fetchValues(isDynasty, numTeams) {
+        const key = cacheKey(isDynasty, numTeams);
+        if (state.cache.has(key)) return state.cache.get(key);
+
+        const url = new URL(API);
+        url.searchParams.set("isDynasty", String(isDynasty));
+        url.searchParams.set("numQbs", "1");
+        url.searchParams.set("numTeams", String(numTeams));
+        url.searchParams.set("ppr", "1");
+
+        const res = await fetch(url.toString(), { headers: { Accept: "application/json" } });
+        if (!res.ok) throw new Error(`FantasyCalc HTTP ${res.status}`);
+        const json = await res.json();
+        if (!Array.isArray(json)) throw new Error("Unexpected FantasyCalc response");
+
+        // If redraft has no picks, blend dynasty pick values scaled down so format still differs.
+        let assets = buildAssets(json, isDynasty);
+        const hasApiPicks = json.some((r) => r.player && r.player.position === "PICK");
+        if (!isDynasty && !hasApiPicks) {
+          try {
+            const dUrl = new URL(API);
+            dUrl.searchParams.set("isDynasty", "true");
+            dUrl.searchParams.set("numQbs", "1");
+            dUrl.searchParams.set("numTeams", String(numTeams));
+            dUrl.searchParams.set("ppr", "1");
+            const dRes = await fetch(dUrl.toString(), { headers: { Accept: "application/json" } });
+            if (dRes.ok) {
+              const dJson = await dRes.json();
+              const dynastyAssets = buildAssets(dJson, true);
+              const pickMap = new Map(
+                dynastyAssets.filter((a) => a.kind === "pick").map((a) => [a.id, Math.max(1, Math.round(a.value * 0.12))])
+              );
+              assets = assets.map((a) =>
+                a.kind === "pick" && pickMap.has(a.id) ? { ...a, value: pickMap.get(a.id) } : a
+              );
+            }
+          } catch (_) {
+            /* keep extrapolated redraft picks */
+          }
+        }
+
+        state.cache.set(key, assets);
+        return assets;
+      }
+
+      function usedIds(exceptRowId = null) {
+        const used = new Set();
+        for (const side of ["a", "b"]) {
+          for (const row of state.sides[side]) {
+            if (exceptRowId && row.rowId === exceptRowId) continue;
+            if (row.assetId) used.add(row.assetId);
+          }
+        }
+        return used;
+      }
+
+      function assetById(id) {
+        return state.assets.find((a) => a.id === id) || null;
+      }
+
+      function refreshRowValues() {
+        for (const side of ["a", "b"]) {
+          for (const row of state.sides[side]) {
+            if (!row.assetId) continue;
+            const asset = assetById(row.assetId);
+            if (asset) row.value = asset.value;
+            else {
+              // Asset disappeared after format change — clear
+              row.assetId = null;
+              row.label = "";
+              row.value = 0;
+            }
+          }
+        }
+        renderAllRows();
+        updateVerdict();
+      }
+
+      function updateVerdict() {
+        const sum = (side) =>
+          state.sides[side].reduce((n, r) => n + (r.assetId ? Number(r.value) || 0 : 0), 0);
+        const a = sum("a");
+        const b = sum("b");
+        el.totalA.textContent = fmt(a);
+        el.totalB.textContent = fmt(b);
+        const max = Math.max(a, b, 1);
+        el.barA.style.width = `${(a / max) * 100}%`;
+        el.barB.style.width = `${(b / max) * 100}%`;
+
+        const diff = b - a;
+        const abs = Math.abs(diff);
+        el.verdictDelta.classList.remove("fair", "lean-a", "lean-b");
+        if (!a && !b) {
+          el.verdictTitle.textContent = "Add assets to both sides";
+          el.verdictDelta.textContent = "—";
+          el.verdictDelta.classList.add("fair");
+          return;
+        }
+        if (abs < Math.max(25, max * 0.03)) {
+          el.verdictTitle.textContent = "Even trade";
+          el.verdictDelta.textContent = `Δ ${fmt(abs)}`;
+          el.verdictDelta.classList.add("fair");
+        } else if (diff > 0) {
+          el.verdictTitle.textContent = "You win";
+          el.verdictDelta.textContent = `+${fmt(abs)}`;
+          el.verdictDelta.classList.add("lean-b");
+        } else {
+          el.verdictTitle.textContent = "You lose";
+          el.verdictDelta.textContent = `−${fmt(abs)}`;
+          el.verdictDelta.classList.add("lean-a");
+        }
+      }
+
+      function makeRow(side, kind = "player") {
+        return {
+          rowId: `${side}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          side,
+          kind,
+          assetId: null,
+          label: "",
+          value: 0,
+          query: "",
+          open: false,
+          activeIndex: 0,
+        };
+      }
+
+      function addRow(side, kind) {
+        state.sides[side].push(makeRow(side, kind));
+        renderSide(side);
+        updateVerdict();
+        const container = side === "a" ? el.rowsA : el.rowsB;
+        const input = container.querySelector('.row:last-child input[type="text"]');
+        if (input) input.focus();
+      }
+
+      function removeRow(side, rowId) {
+        state.sides[side] = state.sides[side].filter((r) => r.rowId !== rowId);
+        if (!state.sides[side].length) state.sides[side].push(makeRow(side, "player"));
+        renderSide(side);
+        updateVerdict();
+      }
+
+      function suggestionsFor(row) {
+        const q = normalizeName(row.query);
+        const used = usedIds(row.rowId);
+        const pool = state.assets.filter((a) => a.kind === row.kind);
+        let list;
+        if (!q) {
+          list = pool.slice(0, 12);
+        } else {
+          list = pool
+            .filter((a) => a.search.includes(q) || normalizeName(a.name).startsWith(q))
+            .slice(0, 12);
+        }
+        return list.map((a) => ({ asset: a, taken: used.has(a.id) }));
+      }
+
+      function selectAsset(row, asset) {
+        const used = usedIds(row.rowId);
+        if (used.has(asset.id)) {
+          showToast("Already in this trade — pick something else");
+          return false;
+        }
+        row.assetId = asset.id;
+        row.label = asset.name;
+        row.query = asset.name;
+        row.value = asset.value;
+        row.open = false;
+        renderSide(row.side);
+        updateVerdict();
+        return true;
+      }
+
+      function renderSide(side) {
+        const container = side === "a" ? el.rowsA : el.rowsB;
+        const rows = state.sides[side];
+        container.innerHTML = "";
+
+        for (const row of rows) {
+          const rowEl = document.createElement("div");
+          rowEl.className = "row";
+          rowEl.dataset.rowId = row.rowId;
+
+          const wrap = document.createElement("div");
+          wrap.className = "pick-wrap";
+
+          const input = document.createElement("input");
+          input.type = "text";
+          input.autocomplete = "off";
+          input.spellcheck = false;
+          input.placeholder = row.kind === "pick" ? "Search draft pick…" : "Search player…";
+          input.value = row.query;
+          input.setAttribute("aria-autocomplete", "list");
+          input.setAttribute("aria-expanded", row.open ? "true" : "false");
+
+          const list = document.createElement("ul");
+          list.className = "suggestions" + (row.open ? " open" : "");
+          list.setAttribute("role", "listbox");
+
+          const sugg = row.open ? suggestionsFor(row) : [];
+          sugg.forEach((item, idx) => {
+            const li = document.createElement("li");
+            li.setAttribute("role", "option");
+            if (item.taken) li.classList.add("taken");
+            if (idx === row.activeIndex) li.setAttribute("aria-selected", "true");
+            li.innerHTML = `<span>${escapeHtml(item.asset.name)}${
+              item.asset.position && item.asset.position !== "PICK"
+                ? ` <span class="meta">${escapeHtml(item.asset.position)}</span>`
+                : ""
+            }</span><span class="meta">${fmt(item.asset.value)}${
+              item.taken ? " · used" : ""
+            }</span>`;
+            li.addEventListener("mousedown", (e) => {
+              e.preventDefault();
+              if (item.taken) {
+                showToast("Already in this trade — pick something else");
+                return;
+              }
+              selectAsset(row, item.asset);
+            });
+            list.appendChild(li);
+          });
+
+          input.addEventListener("focus", () => {
+            row.open = true;
+            row.activeIndex = 0;
+            renderSide(side);
+            const again = (side === "a" ? el.rowsA : el.rowsB).querySelector(
+              `[data-row-id="${row.rowId}"] input`
+            );
+            if (again) {
+              again.focus();
+              const len = again.value.length;
+              again.setSelectionRange(len, len);
+            }
+          });
+
+          input.addEventListener("input", () => {
+            row.query = input.value;
+            if (row.assetId) {
+              const current = assetById(row.assetId);
+              if (!current || normalizeName(current.name) !== normalizeName(row.query)) {
+                row.assetId = null;
+                row.value = 0;
+                updateVerdict();
+              }
+            }
+            row.open = true;
+            row.activeIndex = 0;
+            // Lightweight re-render of suggestions only
+            list.classList.add("open");
+            input.setAttribute("aria-expanded", "true");
+            const items = suggestionsFor(row);
+            list.innerHTML = "";
+            items.forEach((item, idx) => {
+              const li = document.createElement("li");
+              li.setAttribute("role", "option");
+              if (item.taken) li.classList.add("taken");
+              if (idx === row.activeIndex) li.setAttribute("aria-selected", "true");
+              li.innerHTML = `<span>${escapeHtml(item.asset.name)}${
+                item.asset.position && item.asset.position !== "PICK"
+                  ? ` <span class="meta">${escapeHtml(item.asset.position)}</span>`
+                  : ""
+              }</span><span class="meta">${fmt(item.asset.value)}${
+                item.taken ? " · used" : ""
+              }</span>`;
+              li.addEventListener("mousedown", (e) => {
+                e.preventDefault();
+                if (item.taken) {
+                  showToast("Already in this trade — pick something else");
+                  return;
+                }
+                selectAsset(row, item.asset);
+              });
+              list.appendChild(li);
+            });
+            const valEl = rowEl.querySelector(".value");
+            if (valEl) valEl.textContent = row.assetId ? fmt(row.value) : "—";
+          });
+
+          input.addEventListener("keydown", (e) => {
+            const items = suggestionsFor(row).filter((x) => !x.taken);
+            if (e.key === "ArrowDown" && row.open) {
+              e.preventDefault();
+              row.activeIndex = Math.min(row.activeIndex + 1, Math.max(0, suggestionsFor(row).length - 1));
+              renderSide(side);
+              focusRowInput(side, row.rowId);
+            } else if (e.key === "ArrowUp" && row.open) {
+              e.preventDefault();
+              row.activeIndex = Math.max(row.activeIndex - 1, 0);
+              renderSide(side);
+              focusRowInput(side, row.rowId);
+            } else if (e.key === "Enter") {
+              e.preventDefault();
+              const all = suggestionsFor(row);
+              const choice = all[row.activeIndex] || all.find((x) => !x.taken);
+              if (choice && !choice.taken) selectAsset(row, choice.asset);
+              else if (choice && choice.taken) showToast("Already in this trade — pick something else");
+            } else if (e.key === "Escape") {
+              row.open = false;
+              renderSide(side);
+            }
+          });
+
+          input.addEventListener("blur", () => {
+            setTimeout(() => {
+              row.open = false;
+              const node = (side === "a" ? el.rowsA : el.rowsB).querySelector(
+                `[data-row-id="${row.rowId}"] .suggestions`
+              );
+              if (node) node.classList.remove("open");
+            }, 150);
+          });
+
+          wrap.appendChild(input);
+          wrap.appendChild(list);
+
+          const value = document.createElement("div");
+          value.className = "value";
+          value.textContent = row.assetId ? fmt(row.value) : "—";
+
+          const remove = document.createElement("button");
+          remove.type = "button";
+          remove.className = "remove";
+          remove.setAttribute("aria-label", "Remove row");
+          remove.textContent = "×";
+          remove.addEventListener("click", () => removeRow(side, row.rowId));
+
+          rowEl.appendChild(wrap);
+          rowEl.appendChild(value);
+          rowEl.appendChild(remove);
+          container.appendChild(rowEl);
+        }
+      }
+
+      function focusRowInput(side, rowId) {
+        const container = side === "a" ? el.rowsA : el.rowsB;
+        const input = container.querySelector(`[data-row-id="${rowId}"] input`);
+        if (input) {
+          input.focus();
+          const len = input.value.length;
+          input.setSelectionRange(len, len);
+        }
+      }
+
+      function renderAllRows() {
+        renderSide("a");
+        renderSide("b");
+      }
+
+      function escapeHtml(s) {
+        return String(s)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;");
+      }
+
+      async function load() {
+        el.status.className = "status";
+        el.status.textContent = "Loading FantasyCalc values…";
+        try {
+          state.assets = await fetchValues(state.isDynasty, state.numTeams);
+          const players = state.assets.filter((a) => a.kind === "player").length;
+          const picks = state.assets.filter((a) => a.kind === "pick").length;
+          el.status.className = "status ok";
+          el.status.textContent = `Loaded ${players} players · ${picks} picks · ${
+            state.isDynasty ? "Dynasty" : "Redraft"
+          } · ${state.numTeams} teams`;
+          refreshRowValues();
+        } catch (err) {
+          console.error(err);
+          el.status.className = "status error";
+          el.status.textContent =
+            "Could not reach FantasyCalc. Check your connection and reload.";
+        }
+      }
+
+      // Format toggle
+      el.btnDynasty.addEventListener("click", () => {
+        if (state.isDynasty) return;
+        state.isDynasty = true;
+        el.btnDynasty.setAttribute("aria-pressed", "true");
+        el.btnRedraft.setAttribute("aria-pressed", "false");
+        load();
+      });
+      el.btnRedraft.addEventListener("click", () => {
+        if (!state.isDynasty) return;
+        state.isDynasty = false;
+        el.btnDynasty.setAttribute("aria-pressed", "false");
+        el.btnRedraft.setAttribute("aria-pressed", "true");
+        load();
+      });
+
+      document.querySelectorAll(".seg.teams button").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const n = Number(btn.dataset.teams);
+          if (n === state.numTeams) return;
+          state.numTeams = n;
+          document.querySelectorAll(".seg.teams button").forEach((b) => {
+            b.setAttribute("aria-pressed", b === btn ? "true" : "false");
+          });
+          load();
+        });
+      });
+
+      document.querySelectorAll("[data-add]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          addRow(btn.dataset.add, btn.dataset.kind);
+        });
+      });
+
+      // Seed blank rows
+      state.sides.a = [makeRow("a", "player"), makeRow("a", "player")];
+      state.sides.b = [makeRow("b", "player"), makeRow("b", "player")];
+      renderAllRows();
+      updateVerdict();
+      load();
+    })();
+  </script>
+</body>
+</html>
