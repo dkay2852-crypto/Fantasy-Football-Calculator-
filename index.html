@@ -943,6 +943,45 @@
         return true;
       }
 
+      function paintSuggestions(listEl, input, row) {
+        const items = suggestionsFor(row);
+        listEl.innerHTML = "";
+        if (!row.open) {
+          listEl.classList.remove("open");
+          input.setAttribute("aria-expanded", "false");
+          return items;
+        }
+        listEl.classList.add("open");
+        input.setAttribute("aria-expanded", "true");
+        if (row.activeIndex >= items.length) row.activeIndex = Math.max(0, items.length - 1);
+        items.forEach((item, idx) => {
+          const li = document.createElement("li");
+          li.setAttribute("role", "option");
+          if (item.taken) li.classList.add("taken");
+          if (idx === row.activeIndex) li.setAttribute("aria-selected", "true");
+          const pos =
+            item.asset.position && item.asset.position !== "PICK"
+              ? ` <span class="meta">${escapeHtml(item.asset.position)}</span>`
+              : "";
+          li.innerHTML = `<span>${escapeHtml(item.asset.name)}${pos}</span><span class="meta">${fmt(
+            item.asset.value
+          )}${item.taken ? " · used" : ""}</span>`;
+          const choose = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (item.taken) {
+              showToast("Already in this trade — pick something else");
+              return;
+            }
+            selectAsset(row, item.asset);
+          };
+          li.addEventListener("mousedown", choose);
+          li.addEventListener("click", choose);
+          listEl.appendChild(li);
+        });
+        return items;
+      }
+
       function renderSide(side) {
         const container = side === "a" ? el.rowsA : el.rowsB;
         const rows = state.sides[side];
@@ -963,48 +1002,16 @@
           input.placeholder = row.kind === "pick" ? "Search draft pick…" : "Search player…";
           input.value = row.query;
           input.setAttribute("aria-autocomplete", "list");
-          input.setAttribute("aria-expanded", row.open ? "true" : "false");
+          input.setAttribute("aria-expanded", "false");
 
           const list = document.createElement("ul");
-          list.className = "suggestions" + (row.open ? " open" : "");
+          list.className = "suggestions";
           list.setAttribute("role", "listbox");
-
-          const sugg = row.open ? suggestionsFor(row) : [];
-          sugg.forEach((item, idx) => {
-            const li = document.createElement("li");
-            li.setAttribute("role", "option");
-            if (item.taken) li.classList.add("taken");
-            if (idx === row.activeIndex) li.setAttribute("aria-selected", "true");
-            li.innerHTML = `<span>${escapeHtml(item.asset.name)}${
-              item.asset.position && item.asset.position !== "PICK"
-                ? ` <span class="meta">${escapeHtml(item.asset.position)}</span>`
-                : ""
-            }</span><span class="meta">${fmt(item.asset.value)}${
-              item.taken ? " · used" : ""
-            }</span>`;
-            li.addEventListener("mousedown", (e) => {
-              e.preventDefault();
-              if (item.taken) {
-                showToast("Already in this trade — pick something else");
-                return;
-              }
-              selectAsset(row, item.asset);
-            });
-            list.appendChild(li);
-          });
 
           input.addEventListener("focus", () => {
             row.open = true;
             row.activeIndex = 0;
-            renderSide(side);
-            const again = (side === "a" ? el.rowsA : el.rowsB).querySelector(
-              `[data-row-id="${row.rowId}"] input`
-            );
-            if (again) {
-              again.focus();
-              const len = again.value.length;
-              again.setSelectionRange(len, len);
-            }
+            paintSuggestions(list, input, row);
           });
 
           input.addEventListener("input", () => {
@@ -1019,49 +1026,23 @@
             }
             row.open = true;
             row.activeIndex = 0;
-            // Lightweight re-render of suggestions only
-            list.classList.add("open");
-            input.setAttribute("aria-expanded", "true");
-            const items = suggestionsFor(row);
-            list.innerHTML = "";
-            items.forEach((item, idx) => {
-              const li = document.createElement("li");
-              li.setAttribute("role", "option");
-              if (item.taken) li.classList.add("taken");
-              if (idx === row.activeIndex) li.setAttribute("aria-selected", "true");
-              li.innerHTML = `<span>${escapeHtml(item.asset.name)}${
-                item.asset.position && item.asset.position !== "PICK"
-                  ? ` <span class="meta">${escapeHtml(item.asset.position)}</span>`
-                  : ""
-              }</span><span class="meta">${fmt(item.asset.value)}${
-                item.taken ? " · used" : ""
-              }</span>`;
-              li.addEventListener("mousedown", (e) => {
-                e.preventDefault();
-                if (item.taken) {
-                  showToast("Already in this trade — pick something else");
-                  return;
-                }
-                selectAsset(row, item.asset);
-              });
-              list.appendChild(li);
-            });
+            paintSuggestions(list, input, row);
             const valEl = rowEl.querySelector(".value");
             if (valEl) valEl.textContent = row.assetId ? fmt(row.value) : "—";
           });
 
           input.addEventListener("keydown", (e) => {
-            const items = suggestionsFor(row).filter((x) => !x.taken);
-            if (e.key === "ArrowDown" && row.open) {
+            if (e.key === "ArrowDown") {
               e.preventDefault();
-              row.activeIndex = Math.min(row.activeIndex + 1, Math.max(0, suggestionsFor(row).length - 1));
-              renderSide(side);
-              focusRowInput(side, row.rowId);
-            } else if (e.key === "ArrowUp" && row.open) {
+              row.open = true;
+              const items = suggestionsFor(row);
+              row.activeIndex = Math.min(row.activeIndex + 1, Math.max(0, items.length - 1));
+              paintSuggestions(list, input, row);
+            } else if (e.key === "ArrowUp") {
               e.preventDefault();
+              row.open = true;
               row.activeIndex = Math.max(row.activeIndex - 1, 0);
-              renderSide(side);
-              focusRowInput(side, row.rowId);
+              paintSuggestions(list, input, row);
             } else if (e.key === "Enter") {
               e.preventDefault();
               const all = suggestionsFor(row);
@@ -1070,18 +1051,17 @@
               else if (choice && choice.taken) showToast("Already in this trade — pick something else");
             } else if (e.key === "Escape") {
               row.open = false;
-              renderSide(side);
+              paintSuggestions(list, input, row);
             }
           });
 
           input.addEventListener("blur", () => {
             setTimeout(() => {
+              if (list.matches(":hover") || list.contains(document.activeElement)) return;
               row.open = false;
-              const node = (side === "a" ? el.rowsA : el.rowsB).querySelector(
-                `[data-row-id="${row.rowId}"] .suggestions`
-              );
-              if (node) node.classList.remove("open");
-            }, 150);
+              list.classList.remove("open");
+              input.setAttribute("aria-expanded", "false");
+            }, 180);
           });
 
           wrap.appendChild(input);
@@ -1102,16 +1082,6 @@
           rowEl.appendChild(value);
           rowEl.appendChild(remove);
           container.appendChild(rowEl);
-        }
-      }
-
-      function focusRowInput(side, rowId) {
-        const container = side === "a" ? el.rowsA : el.rowsB;
-        const input = container.querySelector(`[data-row-id="${rowId}"] input`);
-        if (input) {
-          input.focus();
-          const len = input.value.length;
-          input.setSelectionRange(len, len);
         }
       }
 
