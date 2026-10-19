@@ -451,7 +451,7 @@
     @media (min-width: 720px) {
       .sides { grid-template-columns: 1fr 1fr; gap: 1.5rem; }
       .controls {
-        grid-template-columns: 1.2fr 1fr;
+        grid-template-columns: 1fr 1fr 0.9fr;
         align-items: end;
       }
     }
@@ -473,6 +473,13 @@
           <div class="seg" role="group" aria-labelledby="format-label">
             <button type="button" id="btn-dynasty" aria-pressed="true">Dynasty</button>
             <button type="button" id="btn-redraft" aria-pressed="false">Redraft</button>
+          </div>
+        </div>
+        <div class="control-block">
+          <div class="label" id="qb-label">QB settings</div>
+          <div class="seg" role="group" aria-labelledby="qb-label">
+            <button type="button" id="btn-1qb" aria-pressed="true">1QB</button>
+            <button type="button" id="btn-superflex" aria-pressed="false">Superflex</button>
           </div>
         </div>
         <div class="control-block">
@@ -525,7 +532,7 @@
       <p class="footnote">
         Values load from FantasyCalc’s public API
         (<code>https://api.fantasycalc.com/values/current</code>
-        with <code>isDynasty</code>, <code>numTeams</code>, <code>numQbs=1</code>, and <code>ppr=1</code>.
+        with <code>isDynasty</code>, <code>numTeams</code>, <code>numQbs</code> (1 or 2 for Superflex), and <code>ppr=1</code>.
         Trade values use FantasyCalc’s ~1–10,000 scale (elite assets can slightly exceed 10,000).
         Draft picks cover the next three NFL drafts, rounds 1–5. When FantasyCalc omits a round
         (often 5ths, and all picks in redraft), SNAP extrapolates from nearby FantasyCalc pick
@@ -552,6 +559,7 @@
 
       const state = {
         isDynasty: true,
+        numQbs: 1,
         numTeams: 12,
         assets: [], // { id, name, position, value, kind: 'player'|'pick', search }
         cache: new Map(),
@@ -572,10 +580,12 @@
         toast: document.getElementById("toast"),
         btnDynasty: document.getElementById("btn-dynasty"),
         btnRedraft: document.getElementById("btn-redraft"),
+        btn1qb: document.getElementById("btn-1qb"),
+        btnSuperflex: document.getElementById("btn-superflex"),
       };
 
-      function cacheKey(isDynasty, numTeams) {
-        return `${isDynasty ? "D" : "R"}-${numTeams}`;
+      function cacheKey(isDynasty, numQbs, numTeams) {
+        return `${isDynasty ? "D" : "R"}-QB${numQbs}-${numTeams}`;
       }
 
       function showToast(msg) {
@@ -769,13 +779,13 @@
         return [...players, ...picks].sort((a, b) => b.value - a.value);
       }
 
-      async function fetchValues(isDynasty, numTeams) {
-        const key = cacheKey(isDynasty, numTeams);
+      async function fetchValues(isDynasty, numQbs, numTeams) {
+        const key = cacheKey(isDynasty, numQbs, numTeams);
         if (state.cache.has(key)) return state.cache.get(key);
 
         const url = new URL(API);
         url.searchParams.set("isDynasty", String(isDynasty));
-        url.searchParams.set("numQbs", "1");
+        url.searchParams.set("numQbs", String(numQbs));
         url.searchParams.set("numTeams", String(numTeams));
         url.searchParams.set("ppr", "1");
 
@@ -791,7 +801,7 @@
           try {
             const dUrl = new URL(API);
             dUrl.searchParams.set("isDynasty", "true");
-            dUrl.searchParams.set("numQbs", "1");
+            dUrl.searchParams.set("numQbs", String(numQbs));
             dUrl.searchParams.set("numTeams", String(numTeams));
             dUrl.searchParams.set("ppr", "1");
             const dRes = await fetch(dUrl.toString(), { headers: { Accept: "application/json" } });
@@ -1102,13 +1112,13 @@
         el.status.className = "status";
         el.status.textContent = "Loading FantasyCalc values…";
         try {
-          state.assets = await fetchValues(state.isDynasty, state.numTeams);
+          state.assets = await fetchValues(state.isDynasty, state.numQbs, state.numTeams);
           const players = state.assets.filter((a) => a.kind === "player").length;
           const picks = state.assets.filter((a) => a.kind === "pick").length;
           el.status.className = "status ok";
           el.status.textContent = `Loaded ${players} players · ${picks} picks · ${
             state.isDynasty ? "Dynasty" : "Redraft"
-          } · ${state.numTeams} teams`;
+          } · ${state.numQbs === 2 ? "Superflex" : "1QB"} · ${state.numTeams} teams`;
           refreshRowValues();
         } catch (err) {
           console.error(err);
@@ -1131,6 +1141,22 @@
         state.isDynasty = false;
         el.btnDynasty.setAttribute("aria-pressed", "false");
         el.btnRedraft.setAttribute("aria-pressed", "true");
+        load();
+      });
+
+      // 1QB / Superflex toggle
+      el.btn1qb.addEventListener("click", () => {
+        if (state.numQbs === 1) return;
+        state.numQbs = 1;
+        el.btn1qb.setAttribute("aria-pressed", "true");
+        el.btnSuperflex.setAttribute("aria-pressed", "false");
+        load();
+      });
+      el.btnSuperflex.addEventListener("click", () => {
+        if (state.numQbs === 2) return;
+        state.numQbs = 2;
+        el.btn1qb.setAttribute("aria-pressed", "false");
+        el.btnSuperflex.setAttribute("aria-pressed", "true");
         load();
       });
 
