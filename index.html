@@ -287,14 +287,20 @@
     .rows {
       display: grid;
       gap: 0.55rem;
+      overflow: visible;
     }
 
     .row {
+      position: relative;
       display: grid;
       grid-template-columns: 1fr auto auto;
       gap: 0.45rem;
       align-items: center;
+      overflow: visible;
       animation: rowIn 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+    }
+    .row.is-suggesting {
+      z-index: 40;
     }
 
     @keyframes rowIn {
@@ -305,18 +311,25 @@
     .pick-wrap {
       position: relative;
       min-width: 0;
+      overflow: visible;
+      z-index: 1;
+    }
+    .row.is-suggesting .pick-wrap {
+      z-index: 2;
     }
 
     .pick-wrap input {
       width: 100%;
+      min-height: 44px;
       padding: 0.85rem 0.9rem;
       border-radius: 12px;
       border: 1px solid var(--line);
       background: rgba(0, 0, 0, 0.28);
       color: var(--paper);
-      font: 500 1rem/1.2 var(--font-body);
+      font: 500 1.0625rem/1.25 var(--font-body);
       outline: none;
       transition: border-color 0.2s ease, box-shadow 0.2s ease;
+      scroll-margin: 28vh 0 36vh;
     }
     .pick-wrap input:focus {
       border-color: rgba(200, 245, 66, 0.55);
@@ -329,9 +342,12 @@
       left: 0;
       right: 0;
       top: calc(100% + 4px);
-      z-index: 8;
-      max-height: 220px;
+      bottom: auto;
+      z-index: 50;
+      max-height: min(240px, 42vh);
       overflow: auto;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior: contain;
       margin: 0;
       padding: 0.35rem;
       list-style: none;
@@ -342,14 +358,21 @@
       display: none;
     }
     .suggestions.open { display: block; }
+    .suggestions.above {
+      top: auto;
+      bottom: calc(100% + 4px);
+    }
     .suggestions li {
-      padding: 0.65rem 0.7rem;
+      min-height: 44px;
+      padding: 0.75rem 0.85rem;
       border-radius: 8px;
       cursor: pointer;
       display: flex;
       justify-content: space-between;
+      align-items: center;
       gap: 0.75rem;
-      font-size: 0.95rem;
+      font-size: 1.0625rem;
+      line-height: 1.3;
     }
     .suggestions li:hover,
     .suggestions li[aria-selected="true"] {
@@ -357,7 +380,7 @@
     }
     .suggestions .meta {
       color: rgba(232, 242, 228, 0.5);
-      font-size: 0.8rem;
+      font-size: 0.95rem;
       white-space: nowrap;
       font-variant-numeric: tabular-nums;
     }
@@ -953,12 +976,58 @@
         return true;
       }
 
+      let activeSuggest = null; // { input, listEl, rowEl }
+
+      function clearSuggestingRows(exceptRowEl = null) {
+        document.querySelectorAll(".row.is-suggesting").forEach((r) => {
+          if (r !== exceptRowEl) r.classList.remove("is-suggesting");
+        });
+      }
+
+      function placeSuggestions(input, listEl) {
+        const rowEl = input.closest(".row");
+        clearSuggestingRows(rowEl);
+        if (rowEl) rowEl.classList.add("is-suggesting");
+        activeSuggest = { input, listEl, rowEl };
+
+        listEl.classList.remove("above");
+        // Leave room for the dropdown under a focused field (esp. with iOS keyboard).
+        input.scrollIntoView({ block: "center", inline: "nearest", behavior: "smooth" });
+
+        requestAnimationFrame(() => {
+          if (!listEl.classList.contains("open")) return;
+          const vv = window.visualViewport;
+          const viewTop = vv ? vv.offsetTop : 0;
+          const viewBottom = vv ? vv.offsetTop + vv.height : window.innerHeight;
+          const inputRect = input.getBoundingClientRect();
+          const spaceBelow = viewBottom - inputRect.bottom;
+          const spaceAbove = inputRect.top - viewTop;
+          const need = Math.min(240, listEl.scrollHeight || 200);
+
+          if (spaceBelow < Math.min(need, 140) && spaceAbove > spaceBelow) {
+            listEl.classList.add("above");
+          } else {
+            listEl.classList.remove("above");
+          }
+
+          // If the keyboard still covers the field, nudge so input sits in the upper half of the visual viewport.
+          const target = viewTop + (viewBottom - viewTop) * 0.3;
+          const delta = inputRect.top - target;
+          if (Math.abs(delta) > 28) {
+            window.scrollBy({ top: delta, left: 0, behavior: "smooth" });
+          }
+        });
+      }
+
       function paintSuggestions(listEl, input, row) {
         const items = suggestionsFor(row);
         listEl.innerHTML = "";
         if (!row.open) {
-          listEl.classList.remove("open");
+          listEl.classList.remove("open", "above");
           input.setAttribute("aria-expanded", "false");
+          const rowEl = input.closest(".row");
+          if (rowEl) rowEl.classList.remove("is-suggesting");
+          if (activeSuggest && activeSuggest.listEl === listEl) activeSuggest = null;
           return items;
         }
         listEl.classList.add("open");
@@ -989,6 +1058,7 @@
           li.addEventListener("click", choose);
           listEl.appendChild(li);
         });
+        placeSuggestions(input, listEl);
         return items;
       }
 
@@ -1069,8 +1139,10 @@
             setTimeout(() => {
               if (list.matches(":hover") || list.contains(document.activeElement)) return;
               row.open = false;
-              list.classList.remove("open");
+              list.classList.remove("open", "above");
               input.setAttribute("aria-expanded", "false");
+              rowEl.classList.remove("is-suggesting");
+              if (activeSuggest && activeSuggest.listEl === list) activeSuggest = null;
             }, 180);
           });
 
@@ -1178,12 +1250,23 @@
         });
       });
 
-      // Seed blank rows
-      state.sides.a = [makeRow("a", "player"), makeRow("a", "player")];
-      state.sides.b = [makeRow("b", "player"), makeRow("b", "player")];
+      // Seed blank rows — one empty player row per side
+      state.sides.a = [makeRow("a", "player")];
+      state.sides.b = [makeRow("b", "player")];
       renderAllRows();
       updateVerdict();
       load();
+
+      // Keep the open autocomplete usable when the iOS keyboard resizes the visual viewport.
+      const onViewportChange = () => {
+        if (!activeSuggest || !activeSuggest.listEl.classList.contains("open")) return;
+        placeSuggestions(activeSuggest.input, activeSuggest.listEl);
+      };
+      if (window.visualViewport) {
+        window.visualViewport.addEventListener("resize", onViewportChange);
+        window.visualViewport.addEventListener("scroll", onViewportChange);
+      }
+      window.addEventListener("resize", onViewportChange);
     })();
   </script>
 <script data-goatcounter="https://dkay2852.goatcounter.com/count"
