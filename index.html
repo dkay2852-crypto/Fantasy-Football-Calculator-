@@ -985,38 +985,27 @@
       }
 
       function placeSuggestions(input, listEl) {
+        // Reposition only — never scroll. Scrolling here + visualViewport listeners caused an iOS feedback loop.
         const rowEl = input.closest(".row");
         clearSuggestingRows(rowEl);
         if (rowEl) rowEl.classList.add("is-suggesting");
         activeSuggest = { input, listEl, rowEl };
 
-        listEl.classList.remove("above");
-        // Leave room for the dropdown under a focused field (esp. with iOS keyboard).
-        input.scrollIntoView({ block: "center", inline: "nearest", behavior: "smooth" });
+        if (!listEl.classList.contains("open")) return;
 
-        requestAnimationFrame(() => {
-          if (!listEl.classList.contains("open")) return;
-          const vv = window.visualViewport;
-          const viewTop = vv ? vv.offsetTop : 0;
-          const viewBottom = vv ? vv.offsetTop + vv.height : window.innerHeight;
-          const inputRect = input.getBoundingClientRect();
-          const spaceBelow = viewBottom - inputRect.bottom;
-          const spaceAbove = inputRect.top - viewTop;
-          const need = Math.min(240, listEl.scrollHeight || 200);
+        const vv = window.visualViewport;
+        const viewTop = vv ? vv.offsetTop : 0;
+        const viewBottom = vv ? vv.offsetTop + vv.height : window.innerHeight;
+        const inputRect = input.getBoundingClientRect();
+        const spaceBelow = viewBottom - inputRect.bottom;
+        const spaceAbove = inputRect.top - viewTop;
+        const need = Math.min(240, listEl.scrollHeight || 200);
 
-          if (spaceBelow < Math.min(need, 140) && spaceAbove > spaceBelow) {
-            listEl.classList.add("above");
-          } else {
-            listEl.classList.remove("above");
-          }
-
-          // If the keyboard still covers the field, nudge so input sits in the upper half of the visual viewport.
-          const target = viewTop + (viewBottom - viewTop) * 0.3;
-          const delta = inputRect.top - target;
-          if (Math.abs(delta) > 28) {
-            window.scrollBy({ top: delta, left: 0, behavior: "smooth" });
-          }
-        });
+        if (spaceBelow < Math.min(need, 140) && spaceAbove > spaceBelow) {
+          listEl.classList.add("above");
+        } else {
+          listEl.classList.remove("above");
+        }
       }
 
       function paintSuggestions(listEl, input, row) {
@@ -1089,6 +1078,8 @@
           list.setAttribute("role", "listbox");
 
           input.addEventListener("focus", () => {
+            // Single scroll on first focus only — not from viewport listeners or placeSuggestions.
+            input.scrollIntoView({ block: "center", inline: "nearest", behavior: "smooth" });
             row.open = true;
             row.activeIndex = 0;
             paintSuggestions(list, input, row);
