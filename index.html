@@ -269,6 +269,49 @@
       color: var(--paper);
     }
 
+    .waiver-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.55rem 0.85rem;
+      margin-top: 0.75rem;
+      padding-top: 0.7rem;
+      border-top: 1px solid var(--line);
+    }
+    .waiver-label {
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: rgba(232, 242, 228, 0.55);
+      margin-right: 0.35rem;
+    }
+    .waiver-controls {
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+    }
+    .seg.waiver {
+      grid-template-columns: repeat(2, 1fr);
+      min-width: 7.5rem;
+    }
+    .seg.waiver button {
+      padding: 0.55rem 0.65rem;
+      font-size: 0.85rem;
+    }
+    .waiver-line {
+      flex: 1 1 12rem;
+      text-align: right;
+      font-size: 0.88rem;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+      color: var(--mist);
+    }
+    .waiver-line.active-a { color: var(--amber); }
+    .waiver-line.active-b { color: #7ed0ff; }
+    .waiver-line.muted { color: rgba(232, 242, 228, 0.45); font-weight: 500; }
+
     /* —— Sides —— */
     .sides {
       display: grid;
@@ -531,6 +574,16 @@
             <div class="bar-track"><div class="bar-fill b" id="bar-b"></div></div>
           </div>
         </div>
+        <div class="waiver-row">
+          <div class="waiver-controls">
+            <span class="waiver-label" id="waiver-label">Waiver</span>
+            <div class="seg waiver" role="group" aria-labelledby="waiver-label">
+              <button type="button" id="btn-waiver-on" aria-pressed="true">On</button>
+              <button type="button" id="btn-waiver-off" aria-pressed="false">Off</button>
+            </div>
+          </div>
+          <div class="waiver-line muted" id="waiver-line">Waiver adjustment: —</div>
+        </div>
       </section>
 
       <div class="sides">
@@ -560,6 +613,9 @@
         Draft picks cover the next three NFL drafts, rounds 1–5. When FantasyCalc omits a round
         (often 5ths, and all picks in redraft), SNAP extrapolates from nearby FantasyCalc pick
         values so league-size and format still move the numbers.
+        Optional waiver adjustment (on by default) credits the side with fewer pieces:
+        for each extra piece on the other side, add the sparser side’s lowest piece value,
+        capped at 15% of that side’s total.
       </p>
     </main>
   </div>
@@ -580,10 +636,13 @@
         return [start, start + 1, start + 2];
       })();
 
+      const SIDE_LABELS = { a: "You give", b: "You get" };
+
       const state = {
         isDynasty: true,
         numQbs: 1,
         numTeams: 12,
+        waiverAdj: true,
         assets: [], // { id, name, position, value, kind: 'player'|'pick', search }
         cache: new Map(),
         sides: { a: [], b: [] }, // row models
@@ -600,11 +659,14 @@
         barB: document.getElementById("bar-b"),
         verdictTitle: document.getElementById("verdict-title"),
         verdictDelta: document.getElementById("verdict-delta"),
+        waiverLine: document.getElementById("waiver-line"),
         toast: document.getElementById("toast"),
         btnDynasty: document.getElementById("btn-dynasty"),
         btnRedraft: document.getElementById("btn-redraft"),
         btn1qb: document.getElementById("btn-1qb"),
         btnSuperflex: document.getElementById("btn-superflex"),
+        btnWaiverOn: document.getElementById("btn-waiver-on"),
+        btnWaiverOff: document.getElementById("btn-waiver-off"),
       };
 
       function cacheKey(isDynasty, numQbs, numTeams) {
@@ -880,18 +942,67 @@
         updateVerdict();
       }
 
+      function sideValues(side) {
+        return state.sides[side]
+          .filter((r) => r.assetId)
+          .map((r) => Number(r.value) || 0);
+      }
+
+      /**
+       * Credit the side with fewer pieces for each extra piece on the fuller side,
+       * valued at the sparser side's lowest piece, capped at 15% of the sparser total.
+       */
+      function computeWaiverAdjustment(valsA, valsB) {
+        const countA = valsA.length;
+        const countB = valsB.length;
+        if (!countA || !countB || countA === countB) {
+          return { amount: 0, to: null };
+        }
+        const aSparse = countA < countB;
+        const sparseVals = aSparse ? valsA : valsB;
+        const to = aSparse ? "a" : "b";
+        const extra = Math.abs(countA - countB);
+        const lowest = Math.min(...sparseVals);
+        const sparseTotal = sparseVals.reduce((n, v) => n + v, 0);
+        const raw = extra * lowest;
+        const amount = Math.max(0, Math.round(Math.min(raw, sparseTotal * 0.15)));
+        return { amount, to: amount > 0 ? to : null };
+      }
+
       function updateVerdict() {
-        const sum = (side) =>
-          state.sides[side].reduce((n, r) => n + (r.assetId ? Number(r.value) || 0 : 0), 0);
-        const a = sum("a");
-        const b = sum("b");
+        const valsA = sideValues("a");
+        const valsB = sideValues("b");
+        const a = valsA.reduce((n, v) => n + v, 0);
+        const b = valsB.reduce((n, v) => n + v, 0);
         el.totalA.textContent = fmt(a);
         el.totalB.textContent = fmt(b);
-        const max = Math.max(a, b, 1);
-        el.barA.style.width = `${(a / max) * 100}%`;
-        el.barB.style.width = `${(b / max) * 100}%`;
 
-        const diff = b - a;
+        const waiver = computeWaiverAdjustment(valsA, valsB);
+        let adjA = 0;
+        let adjB = 0;
+        el.waiverLine.classList.remove("active-a", "active-b", "muted");
+        if (!state.waiverAdj) {
+          el.waiverLine.textContent = "Waiver adjustment: off";
+          el.waiverLine.classList.add("muted");
+        } else if (!waiver.amount || !waiver.to) {
+          el.waiverLine.textContent = "Waiver adjustment: —";
+          el.waiverLine.classList.add("muted");
+        } else {
+          if (waiver.to === "a") adjA = waiver.amount;
+          else adjB = waiver.amount;
+          el.waiverLine.textContent = `Waiver adjustment: +${fmt(waiver.amount)} to ${
+            SIDE_LABELS[waiver.to]
+          }`;
+          el.waiverLine.classList.add(waiver.to === "a" ? "active-a" : "active-b");
+        }
+
+        const effectiveA = a + adjA;
+        const effectiveB = b + adjB;
+        const max = Math.max(effectiveA, effectiveB, 1);
+        el.barA.style.width = `${(effectiveA / max) * 100}%`;
+        el.barB.style.width = `${(effectiveB / max) * 100}%`;
+
+        const diff = effectiveB - effectiveA;
         const abs = Math.abs(diff);
         el.verdictDelta.classList.remove("fair", "lean-a", "lean-b");
         if (!a && !b) {
@@ -1233,6 +1344,22 @@
           });
           load();
         });
+      });
+
+      // Waiver adjustment toggle (on by default)
+      el.btnWaiverOn.addEventListener("click", () => {
+        if (state.waiverAdj) return;
+        state.waiverAdj = true;
+        el.btnWaiverOn.setAttribute("aria-pressed", "true");
+        el.btnWaiverOff.setAttribute("aria-pressed", "false");
+        updateVerdict();
+      });
+      el.btnWaiverOff.addEventListener("click", () => {
+        if (!state.waiverAdj) return;
+        state.waiverAdj = false;
+        el.btnWaiverOn.setAttribute("aria-pressed", "false");
+        el.btnWaiverOff.setAttribute("aria-pressed", "true");
+        updateVerdict();
       });
 
       document.querySelectorAll("[data-add]").forEach((btn) => {
